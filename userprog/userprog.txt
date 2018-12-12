@@ -1,0 +1,251 @@
+		     +--------------------------+
+       	       	     |		EE461S		|
+		     | PROJECT 2: USER PROGRAMS	|
+		     | 	   DESIGN DOCUMENT     	|
+		     +--------------------------+
+---- GROUP ----
+>> Fill in the names and email addresses of your group members.
+Meng Lin <linm95@utexas.edu>
+Yaohua Zhao <yaohua.zhao@utexas.edu>
+Yi Zhang <victor_zhang@utexas.edu>
+---- PRELIMINARIES ----
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+			   ARGUMENT PASSING
+			   ================
+---- DATA STRUCTURES ----
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+-----------------------------
+struct thread
+  {
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    int priority;                       /* Priority. */
+    struct list_elem allelem;           /* List element for all threads list. */
+
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    /*waiting semaphore*/
+    struct semaphore wait_sema;
+    tid_t wait_thread;
+
+    /*children threads*/
+    struct thread* parent;
+    struct child* child_node;
+    struct list children;
+
+    /*exec sema and status*/
+    struct semaphore exec_sema;
+    bool load_succeed;
+    bool in_exec;
+
+    /*files*/
+    struct list fd_table;
+    int fd_count;
+    struct file* executable;
+
+#ifdef USERPROG
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
+#endif
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+struct child {
+	tid_t tid;
+	struct list_elem elem;
+	int exit_status;
+	bool waited;
+	bool dead;
+};
+
+struct fd {
+	int fd_num;
+	struct file* f;
+	struct list_elem elem;
+};
+
+1. We add several menbers in the thread struct, which are used for implementing
+the child thread waiting, successful loading checking and files openning.
+2. struct child is added to store the information of a thread after it exits.
+3. fd is a struct to store the file descriptor information
+------------------------
+---- ALGORITHMS ----
+>> A2: Briefly describe how you implemented argument parsing.  How do
+>> you arrange for the elements of argv[] to be in the right order?
+>> How do you avoid overflowing the stack page?
+--------------------------------------
+1. First copy the command line string to the top of the stack. Then traverse 
+the string from the end to the begin, when I find a ' ', which indicate a new 
+argument, push the address of that argument into stack. At end, push some other 
+information like argument number.
+When it overflows the stack page, it will cause some page fault, which can be 
+handled in the page_fault part.
+----------------------------------
+---- RATIONALE ----
+>> A3: Why does Pintos implement strtok_r() but not strtok()?
+-----------------------------------------------
+Because strtok_r() can store the saved pointer to what user specifies, which is
+helpful here beacause we need that saved string to do the argument parsing.
+----------------------------------
+
+			     SYSTEM CALLS
+			     ============
+---- DATA STRUCTURES ----
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+-------------------------------
+extern struct lock *filesys_lock;
+Used to synchronize the file system operation. Each thread is required to 
+acquire this before any file system operation.
+----------------------------
+>> B2: Describe how file descriptors are associated with open files.
+>> Are file descriptors unique within the entire OS or just within a
+>> single process?
+-------------------
+Each opened file will have a file descriptor struct associated with it. And
+the file descriptor is only unique within a single process. Parent thread
+has a linked list to store the file descriptors.
+---- ALGORITHMS ----
+>> B3: Describe your code for reading and writing user data from the
+>> kernel.
+--------------------------
+Before each reading and writing, I will validate the address, which is going
+to check if the address is NULL, if is a user virtual address and if it
+exists in the page table.
+-------------------------
+>> B4: Suppose a system call causes a full page (4,096 bytes) of data
+>> to be copied from user space into the kernel.  What is the least
+>> and the greatest possible number of inspections of the page table
+>> (e.g. calls to pagedir_get_page()) that might result?  What about
+>> for a system call that only copies 2 bytes of data?  Is there room
+>> for improvement in these numbers, and how much?
+--------------------------------
+Twice. Since any memory space equal or less than 4096 bytes can at most 
+occupy 2 frames, we only need to check the begin and end of the memory
+space.
+Still twice. No room to improve.
+---------------------------------
+>> B5: Briefly describe your implementation of the "wait" system call
+>> and how it interacts with process termination.
+-------------------
+So I have a child struct for each thread and the child struct is stored
+in its parent thread. Every time a thread calls wait(pid), it will set 
+the waiting_pid number as the pid of the child thread it's waiting for 
+and try to decrement the semaphore. Then when the child thread is exiting, 
+it will check if its parent thread's waiting_pid is equal to its own pid,
+if so, it will increment the parent thread's semophore to unblock the
+parent thread. After the thread exits, its child struct still exists,
+which also stores some information about the child thread like exit code. 
+And if a parent thread tries to wait on a exited thread, it can still 
+succeed.
+-------------------
+>> B6: Any access to user program memory at a user-specified address
+>> can fail due to a bad pointer value.  Such accesses must cause the
+>> process to be terminated.  System calls are fraught with such
+>> accesses, e.g. a "write" system call requires reading the system
+>> call number from the user stack, then each of the call's three
+>> arguments, then an arbitrary amount of user memory, and any of
+>> these can fail at any point.  This poses a design and
+>> error-handling problem: how do you best avoid obscuring the primary
+>> function of code in a morass of error-handling?  Furthermore, when
+>> an error is detected, how do you ensure that all temporarily
+>> allocated resources (locks, buffers, etc.) are freed?  In a few
+>> paragraphs, describe the strategy or strategies you adopted for
+>> managing these issues.  Give an example.
+----------------------------
+So I have been very careful about the memory leakage problem, which
+means I have paid much more attention to the operations that involves
+malloc() operation. Basically, whenever I write the malloc() code after 
+I make sure that it can be freed some point in the future. Mostly, this
+job is done in the process_exit method, it will free all the resource 
+it have aquired before exits like the file descriptors, child info and 
+so on.
+----------------------------
+---- SYNCHRONIZATION ----
+>> B7: The "exec" system call returns -1 if loading the new executable
+>> fails, so it cannot return before the new executable has completed
+>> loading.  How does your code ensure this?  How is the load
+>> success/failure status passed back to the thread that calls "exec"?
+------------------------
+Each process has a exec_sema to ensure this. So when a parent thread is 
+creating a new thread with exec command, the pararent thread in_exec 
+status will be set as true, which means this thread is executing the 
+exec() system call. Then the parent thread will try to decrement the 
+exec_sema to wait for the loading result. The child thread will then 
+write the loading status back to the parent thread and increment the 
+parent's exec_sema. Then the parent thread can continue to get the 
+loading result and return.
+--------------------
+>> B8: Consider parent process P with child process C.  How do you
+>> ensure proper synchronization and avoid race conditions when P
+>> calls wait(C) before C exits?  After C exits?  How do you ensure
+>> that all resources are freed in each case?  How about when P
+>> terminates without waiting, before C exits?  After C exits?  Are
+>> there any special cases?
+-------------------------
+The wait_sema in each thread is mainly used to solve the synchronization 
+problem of the parent thread and its children threads. I also have 
+another struct child to store each thread's exit status and running 
+status, which is independable to the thread. So this struct can be 
+managed directly by the parent thread and no need to worry about when
+the child thread exits. And also since one thread can only be waited
+by its parent thread, there is no need to worry about the waiting 
+problem is parent thread exits before child thread.
+-------------------------
+---- RATIONALE ----
+>> B9: Why did you choose to implement access to user memory from the
+>> kernel in the way that you did?
+----------------
+In this way, I don't have to consider about the page_fault handler,
+which is much easier to implement.
+----------------
+>> B10: What advantages or disadvantages can you see to your design
+>> for file descriptors?
+-------------------
+Advantages: consume only little kernel space. Simple and straitforward.
+Disadvantages: the file descriptors are stored in linked list, so when
+the amount of opened files is larged, it might be not very efficient to 
+find the file descriptor I want.
+------------------
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
+>> If you changed it, what advantages are there to your approach?
+-------------------
+I can so no difference between process and thread in our project and I 
+don't see any struct that is related to a "process", so I think there 
+is no advantage in doing so.
+-------------------
+			   SURVEY QUESTIONS
+			   ================
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+>> Any other comments?
+--------------------------------
+I really hope that professor or TA can lead us to dive deeper in the
+starter part of the OS like the bootloader, real mode, protection mode.
+That would be really helpful to me.

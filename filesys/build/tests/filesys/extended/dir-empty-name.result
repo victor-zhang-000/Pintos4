@@ -1,0 +1,2 @@
+FAIL
+run: Unimplemented system call16(dir-empty-name) mkdir "" (must return false): FAILED

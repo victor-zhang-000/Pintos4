@@ -1,0 +1,40 @@
+Copying tests/filesys/extended/dir-rm-tree to scratch partition...
+Copying tests/filesys/extended/tar to scratch partition...
+qemu -device isa-debug-exit -hda /tmp/WPgvdvffGM.dsk -hdb tmp.dsk -m 4 -net none -nographic -monitor null
+PiLo hda1
+Loading............
+Kernel command line: -q -f extract run dir-rm-tree
+Pintos booting with 3,968 kB RAM...
+367 pages available in kernel pool.
+367 pages available in user pool.
+Calibrating timer...  523,468,800 loops/s.
+hda: 1,008 sectors (504 kB), model "QM00001", serial "QEMU HARDDISK"
+hda1: 195 sectors (97 kB), Pintos OS kernel (20)
+hda2: 222 sectors (111 kB), Pintos scratch (22)
+hdb: 5,040 sectors (2 MB), model "QM00002", serial "QEMU HARDDISK"
+hdb1: 4,096 sectors (2 MB), Pintos file system (21)
+filesys: using hdb1
+scratch: using hda2
+Formatting file system...done.
+Boot complete.
+Extracting ustar archive from scratch device into file system...
+Putting 'dir-rm-tree' into the file system...
+Putting 'tar' into the file system...
+Erasing ustar archive...
+Executing 'dir-rm-tree':
+(dir-rm-tree) begin
+(dir-rm-tree) creating /0/0/0/0 through /3/2/2/3...
+Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16Unimplemented system call16(dir-rm-tree) open "/0/2/0/3"
+(dir-rm-tree) close "/0/2/0/3"
+(dir-rm-tree) removing /0/0/0/0 through /3/2/2/3...
+(dir-rm-tree) remove "/0/0/0": FAILED
+dir-rm-tree: exit(1)
+Execution of 'dir-rm-tree' complete.
+Timer: 501 ticks
+Thread: 306 idle ticks, 82 kernel ticks, 113 user ticks
+hdb1 (filesys): 22533 reads, 1250 writes
+hda2 (scratch): 221 reads, 2 writes
+Console: 2605 characters output
+Keyboard: 0 keys pressed
+Exception: 0 page faults
+Powering off...
